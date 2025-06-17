@@ -384,7 +384,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>订阅转换工具</title>
+  <title>One-Sub</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
@@ -902,7 +902,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
 </head>
 <body>
   <div class="container">
-    <h1>订阅转换工具</h1>
+    <h1>One-Sub</h1>
     
     <div id="converter-form">
       <div class="form-section">
@@ -1172,8 +1172,8 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       const optionsGrid = document.getElementById('optionsGrid');
       
       // 初始只显示部分选项
-      const initialOptions = featureOptions.slice(0, 2);
-      const hiddenOptions = featureOptions.slice(2);
+      const initialOptions = featureOptions.slice(0, 3);
+      const hiddenOptions = featureOptions.slice(3);
       let showingAllOptions = false;
       
       function renderOptions(options) {
@@ -1999,7 +1999,7 @@ export default {
       try {
         let shortId;
         let existingUrl = null;  // 初始化existingUrl变量
-        
+
         if (customId) {
           // 检查自定义ID是否已存在
           existingUrl = await getLongUrl(customId, env);
@@ -2018,18 +2018,18 @@ export default {
         } else {
           // 生成随机短链接ID
           shortId = generateShortId();
-          
+
           // 确保随机生成的ID不会与已有ID冲突
           let attempts = 0;
           while (attempts < 5) {  // 最多尝试5次
             existingUrl = await getLongUrl(shortId, env);
             if (!existingUrl) break;  // 如果ID不存在，跳出循环
-            
+
             // 重新生成ID
             shortId = generateShortId();
             attempts++;
           }
-          
+
           if (attempts >= 5) {
             return new Response(JSON.stringify({
               error: '无法生成唯一的短链接ID，请稍后再试'
@@ -2064,7 +2064,7 @@ export default {
         });
       } catch (error) {
         console.error('创建短链接错误:', error);
-        
+
         return new Response(JSON.stringify({
           error: `创建短链接失败: ${error.message}`
         }), {
