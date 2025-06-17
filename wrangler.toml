@@ -21,7 +21,7 @@ workers_dev = true
 
 [observability]
 enabled = true
-head_sampling_rate = 1 # optional. default = 1.
+head_sampling_rate = 1
 
 # 环境变量
 #[vars]
