@@ -813,6 +813,16 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         border-radius: 0 0 4px 4px !important;
         width: 100%;
       }
+      /* 修复手机端短链接输入框样式 */
+      #shortUrlContainer .input-group {
+        display: flex;
+        flex-direction: column;
+      }
+      #shortUrlContainer .input-group > * {
+        width: 100%;
+        margin-bottom: 5px;
+        border-radius: 4px !important;
+      }
       h1 {
         font-size: 1.3rem;
       }
@@ -822,7 +832,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       .form-text {
         font-size: 0.7rem;
       }
-      #qrCode img {
+      #qrCode img, #shortQrCode img {
         max-width: 100%;
         height: auto;
       }
@@ -1054,6 +1064,14 @@ function generateHtmlContent(accessToken, env, requestUrl) {
               <span class="input-group-text">${baseUrl}/${SHORT_URL_PREFIX}/</span>
               <input type="text" class="form-control" id="customShortId" placeholder="输入自定义ID或留空随机生成">
               <button id="shortenBtn" class="btn btn-warning">生成短链接</button>
+            </div>
+            <div class="mt-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="overwriteExisting">
+                <label class="form-check-label" for="overwriteExisting">
+                  覆盖已存在的短链接（谨慎使用）
+                </label>
+              </div>
             </div>
             <div class="form-text mt-1">仅允许使用字母、数字和下划线，长度3-20个字符</div>
             <div id="shortUrlError" class="error-message"></div>
@@ -1468,6 +1486,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         const longUrl = document.getElementById('resultUrl').textContent;
         const customId = document.getElementById('customShortId')?.value?.trim();
         const shortUrlError = document.getElementById('shortUrlError');
+        const overwriteExisting = document.getElementById('overwriteExisting').checked;
         
         // 隐藏之前的错误信息
         shortUrlError.style.display = 'none';
@@ -1496,6 +1515,9 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         if (customId) {
           apiUrl += '&custom_id=' + encodeURIComponent(customId);
         }
+        if (overwriteExisting) {
+          apiUrl += '&overwrite=true';
+        }
         
         // 调用API生成短链接
         fetch(apiUrl)
@@ -1511,12 +1533,24 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             shortUrlElement.classList.add('success-highlight');
             document.getElementById('shortUrlResult').style.display = 'block';
             
-            // 重置短链接二维码状态
-            document.getElementById('shortQrCodeContainer').style.display = 'none';
-            const shortQrCodeBtn = document.getElementById('shortQrCodeBtn');
-            shortQrCodeBtn.textContent = '生成二维码';
-            shortQrCodeBtn.classList.remove('btn-outline-secondary');
-            shortQrCodeBtn.classList.add('btn-outline-success');
+            // 显示成功消息
+            if (data.overwritten) {
+              const successMsg = document.createElement('div');
+              successMsg.className = 'alert alert-success mt-2';
+              successMsg.innerHTML = '<strong>成功：</strong>已覆盖之前的短链接';
+              
+              // 先移除可能存在的成功提示
+              const existingMsg = document.querySelector('#shortUrlContainer .alert');
+              if (existingMsg) existingMsg.remove();
+              
+              // 添加新的成功提示
+              document.getElementById('shortUrlError').parentNode.insertBefore(successMsg, document.getElementById('shortUrlError'));
+              
+              // 3秒后自动隐藏
+              setTimeout(() => {
+                successMsg.style.display = 'none';
+              }, 3000);
+            }
             
             // 如果是自定义ID，显示成功提示
             if (data.custom) {
@@ -1526,6 +1560,13 @@ function generateHtmlContent(accessToken, env, requestUrl) {
                 customInput.classList.remove('is-valid');
               }, 3000);
             }
+            
+            // 重置短链接二维码状态
+            document.getElementById('shortQrCodeContainer').style.display = 'none';
+            const shortQrCodeBtn = document.getElementById('shortQrCodeBtn');
+            shortQrCodeBtn.textContent = '生成二维码';
+            shortQrCodeBtn.classList.remove('btn-outline-secondary');
+            shortQrCodeBtn.classList.add('btn-outline-success');
             
             // 确保短链接容器仍然可见
             document.getElementById('shortUrlContainer').style.display = 'block';
@@ -1561,8 +1602,10 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             
             // 提供更友好的错误消息
             if (errorMsg.includes('KV存储未配置') || 
-                errorMsg.includes('Cannot read properties') && errorMsg.includes('KV')) {
+                (errorMsg.includes('Cannot read properties') && errorMsg.includes('KV'))) {
               userFriendlyMsg = '服务器未正确配置KV存储，请联系管理员';
+            } else if (errorMsg.includes('该自定义短链接已被使用')) {
+              userFriendlyMsg = '该自定义短链接已被使用，请尝试其他ID或勾选"覆盖已存在的短链接"';
             }
             
             // 在界面上显示错误信息
@@ -1907,6 +1950,7 @@ export default {
       const longUrl = params.get('url');
       const accessToken = params.get('token');
       const customId = params.get('custom_id'); // 添加自定义短链接ID支持
+      const overwrite = params.get('overwrite') === 'true'; // 是否覆盖已存在的短链接
 
       // 验证令牌
       const envToken = env && env.ACCESS_TOKEN ? env.ACCESS_TOKEN : '';
@@ -1953,7 +1997,7 @@ export default {
         if (customId) {
           // 检查自定义ID是否已存在
           const existingUrl = await getLongUrl(customId, env);
-          if (existingUrl) {
+          if (existingUrl && !overwrite) {
             return new Response(JSON.stringify({
               error: '该自定义短链接已被使用'
             }), {
@@ -1981,7 +2025,8 @@ export default {
           shortUrl,
           shortId,
           originalUrl: longUrl,
-          custom: !!customId
+          custom: !!customId,
+          overwritten: customId && existingUrl && overwrite
         }), {
           headers: {
             'Content-Type': 'application/json',
