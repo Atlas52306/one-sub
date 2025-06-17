@@ -1545,7 +1545,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
               
               // 添加新的成功提示
               document.getElementById('shortUrlError').parentNode.insertBefore(successMsg, document.getElementById('shortUrlError'));
-              
+                
               // 3秒后自动隐藏
               setTimeout(() => {
                 successMsg.style.display = 'none';
@@ -1606,6 +1606,10 @@ function generateHtmlContent(accessToken, env, requestUrl) {
               userFriendlyMsg = '服务器未正确配置KV存储，请联系管理员';
             } else if (errorMsg.includes('该自定义短链接已被使用')) {
               userFriendlyMsg = '该自定义短链接已被使用，请尝试其他ID或勾选"覆盖已存在的短链接"';
+            } else if (errorMsg.includes('existingUrl is not defined')) {
+              userFriendlyMsg = '服务器内部错误，请刷新页面后重试';
+            } else if (errorMsg.includes('无法生成唯一的短链接ID')) {
+              userFriendlyMsg = '系统繁忙，请稍后再试';
             }
             
             // 在界面上显示错误信息
@@ -1994,9 +1998,11 @@ export default {
 
       try {
         let shortId;
+        let existingUrl = null;  // 初始化existingUrl变量
+        
         if (customId) {
           // 检查自定义ID是否已存在
-          const existingUrl = await getLongUrl(customId, env);
+          existingUrl = await getLongUrl(customId, env);
           if (existingUrl && !overwrite) {
             return new Response(JSON.stringify({
               error: '该自定义短链接已被使用'
@@ -2012,6 +2018,29 @@ export default {
         } else {
           // 生成随机短链接ID
           shortId = generateShortId();
+          
+          // 确保随机生成的ID不会与已有ID冲突
+          let attempts = 0;
+          while (attempts < 5) {  // 最多尝试5次
+            existingUrl = await getLongUrl(shortId, env);
+            if (!existingUrl) break;  // 如果ID不存在，跳出循环
+            
+            // 重新生成ID
+            shortId = generateShortId();
+            attempts++;
+          }
+          
+          if (attempts >= 5) {
+            return new Response(JSON.stringify({
+              error: '无法生成唯一的短链接ID，请稍后再试'
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+              }
+            });
+          }
         }
 
         // 存储短链接
@@ -2034,6 +2063,8 @@ export default {
           }
         });
       } catch (error) {
+        console.error('创建短链接错误:', error);
+        
         return new Response(JSON.stringify({
           error: `创建短链接失败: ${error.message}`
         }), {
