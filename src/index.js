@@ -8,8 +8,8 @@ const DEFAULT_BACKEND = 'https://api.v1.mk';
 
 // 允许的目标格式
 const ALLOWED_TARGETS = [
-  'clash', 'clashr', 'quan', 'quanx', 'loon', 'ss', 'sssub',
-  'ssr', 'ssd', 'surfboard', 'v2ray',
+  'auto', 'clash', 'clashr', 'quan', 'quanx', 'loon', 'mellow', 'ss', 'sssub',
+  'ssr', 'ssd', 'surfboard', 'v2ray', 'trojan', 'mixed',
   'surge', 'surge&ver=2', 'surge&ver=3', 'surge&ver=4'
 ];
 
@@ -383,9 +383,10 @@ function generateHtmlContent(accessToken, env, requestUrl) {
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>订阅转换工具</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -774,6 +775,119 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       from { opacity: 0; }
       to { opacity: 1; }
     }
+
+    /* 移动端优化 */
+    @media (max-width: 576px) {
+      body {
+        padding: 0;
+      }
+      .container {
+        max-width: 100%;
+        border-radius: 0;
+        padding: 12px;
+      }
+      .options-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .btn-group {
+        flex-direction: column;
+        gap: 4px !important;
+      }
+      .btn-group .btn {
+        margin-bottom: 4px;
+        width: 100%;
+      }
+      .input-group {
+        flex-wrap: wrap;
+      }
+      .input-group > .input-group-text {
+        width: 100%;
+        border-radius: 4px 4px 0 0 !important;
+        border-bottom: none;
+      }
+      .input-group > .form-control {
+        width: 100%;
+        border-radius: 0 !important;
+      }
+      .input-group > .btn {
+        border-radius: 0 0 4px 4px !important;
+        width: 100%;
+      }
+      h1 {
+        font-size: 1.3rem;
+      }
+      .section-title {
+        font-size: 0.95rem;
+      }
+      .form-text {
+        font-size: 0.7rem;
+      }
+      #qrCode img {
+        max-width: 100%;
+        height: auto;
+      }
+    }
+    
+    .btn-secondary {
+      background-color: #6c757d;
+      border-color: #6c757d;
+      color: #fff;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #5a6268;
+      border-color: #545b62;
+      color: #fff;
+    }
+    
+    /* 修改结果区域按钮组样式 */
+    #result .btn-group {
+      margin-top: 15px;
+      margin-bottom: 15px;
+      display: flex;
+      gap: 5px;
+    }
+    
+    #result .btn-group .btn {
+      flex: 1;
+      padding: 10px 15px;
+      height: auto;
+      font-size: 0.95rem;
+    }
+    
+    /* 添加短链接区域样式 */
+    #shortUrlContainer {
+      background-color: #fff;
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      padding: 15px;
+      margin-top: 15px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    
+    /* 添加二维码区域样式 */
+    #qrCodeContainer {
+      text-align: center;
+      margin-top: 15px;
+    }
+    
+    #qrCode {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 15px;
+    }
+    
+    #qrCode img {
+      border: 1px solid #eee;
+      padding: 10px;
+      background: #fff;
+    }
+    
+    #downloadQrBtn {
+      padding: 6px 16px;
+      font-size: 0.9rem;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
@@ -792,21 +906,26 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         <div class="section-title">目标格式</div>
         <div class="mb-2">
           <select class="form-select" id="target">
+            <option value="auto">自动识别</option>
             <option value="clash">Clash</option>
             <option value="clashr">ClashR</option>
-            <option value="quan">Quantumult</option>
-            <option value="quanx">Quantumult X</option>
+            <option value="quan">Quantumult (完整配置)</option>
+            <option value="quanx">Quantumult X (完整配置)</option>
             <option value="loon">Loon</option>
+            <option value="mellow">Mellow</option>
             <option value="ss">SS (SIP002)</option>
-            <option value="sssub">SS Android</option>
+            <option value="sssub">SS (软件订阅/SIP008)</option>
             <option value="ssr">SSR</option>
             <option value="ssd">SSD</option>
             <option value="surfboard">Surfboard</option>
             <option value="surge&ver=4">Surge 4</option>
             <option value="surge&ver=3">Surge 3</option>
             <option value="surge&ver=2">Surge 2</option>
+            <option value="trojan">Trojan</option>
             <option value="v2ray">V2Ray</option>
+            <option value="mixed">Mixed</option>
           </select>
+          <div class="form-text">选择"自动识别"将根据客户端自动选择合适的格式</div>
         </div>
       </div>
       
@@ -868,6 +987,52 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         </div>
       </div>
       
+      <div class="form-section">
+        <div class="section-title">高级过滤</div>
+        <div class="d-grid mb-2">
+          <button id="toggleFilterBtn" class="btn more-options-btn">显示过滤选项</button>
+        </div>
+        
+        <div id="filterOptions" style="display: none;">
+          <div class="mb-2">
+            <label for="includeNodes" class="form-label">包含节点（关键词或正则）</label>
+            <input type="text" class="form-control" id="includeNodes" placeholder="多个关键词用|分隔，匹配节点名">
+            <div class="form-text">例如：香港|HK|Hong Kong</div>
+          </div>
+          
+          <div class="mb-2">
+            <label for="excludeNodes" class="form-label">排除节点（关键词或正则）</label>
+            <input type="text" class="form-control" id="excludeNodes" placeholder="多个关键词用|分隔，匹配节点名">
+            <div class="form-text">例如：官网|套餐|到期</div>
+          </div>
+          
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="useRegex">
+            <label class="form-check-label" for="useRegex">
+              使用正则表达式
+            </label>
+            <div class="form-text">启用后，上述过滤内容将作为正则表达式处理</div>
+          </div>
+          
+          <div class="row">
+            <div class="col-6 mb-2">
+              <label for="nodeLimit" class="form-label">节点数量限制</label>
+              <input type="number" class="form-control" id="nodeLimit" placeholder="节点数量上限" min="0">
+            </div>
+            
+            <div class="col-6 mb-2">
+              <label for="sortMethod" class="form-label">节点排序方式</label>
+              <select class="form-select" id="sortMethod">
+                <option value="">不排序</option>
+                <option value="name">按名称</option>
+                <option value="asc,name">按名称升序</option>
+                <option value="desc,name">按名称降序</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div class="d-grid">
         <button id="convertBtn" class="btn btn-primary">生成订阅链接</button>
       </div>
@@ -879,26 +1044,44 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         <div class="btn-group">
           <button id="copyBtn" class="btn btn-primary">复制链接</button>
           <button id="toggleShortUrlBtn" class="btn btn-warning">创建短链接</button>
+          <button id="showQrCodeBtn" class="btn btn-secondary">隐藏二维码</button>
         </div>
         
         <div id="shortUrlContainer" class="short-url" style="display: none;">
           <div class="mb-3">
-            <label for="customShortId" class="form-label">自定义短链接ID（可选）</label>
+            <label class="form-label fw-bold mb-2">自定义短链接ID（可选）</label>
             <div class="input-group">
               <span class="input-group-text">${baseUrl}/${SHORT_URL_PREFIX}/</span>
               <input type="text" class="form-control" id="customShortId" placeholder="输入自定义ID或留空随机生成">
               <button id="shortenBtn" class="btn btn-warning">生成短链接</button>
             </div>
-            <div class="form-text">仅允许使用字母、数字和下划线，长度3-20个字符</div>
+            <div class="form-text mt-1">仅允许使用字母、数字和下划线，长度3-20个字符</div>
             <div id="shortUrlError" class="error-message"></div>
           </div>
           
           <div id="shortUrlResult" style="display: none;">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <span class="fw-bold">短链接:</span>
-              <button id="copyShortBtn" class="btn btn-sm btn-outline-secondary">复制</button>
+              <div>
+                <button id="copyShortBtn" class="btn btn-sm btn-outline-secondary me-1">复制</button>
+                <button id="shortQrCodeBtn" class="btn btn-sm btn-outline-success">生成二维码</button>
+              </div>
             </div>
             <div id="shortUrl" class="result-url"></div>
+            
+            <!-- 短链接二维码容器 -->
+            <div id="shortQrCodeContainer" style="text-align: center; margin-top: 15px; display: none;">
+              <div id="shortQrCode" class="mb-3 d-flex justify-content-center"></div>
+              <div class="text-muted small mb-3">扫描二维码可在移动设备上快速使用短链接</div>
+            </div>
+          </div>
+        </div>
+        
+        <div id="qrCodeContainer" style="text-align: center; margin-top: 15px;">
+          <div id="qrCode" class="mb-3 d-flex justify-content-center"></div>
+          <div class="text-muted small mb-3">扫描二维码可在移动设备上快速导入配置</div>
+          <div class="d-flex justify-content-center">
+            <button id="downloadQrBtn" class="btn btn-outline-primary">保存二维码</button>
           </div>
         </div>
       </div>
@@ -1044,6 +1227,18 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         showingAllOptions = !showingAllOptions;
       });
       
+      // 显示/隐藏高级过滤选项
+      document.getElementById('toggleFilterBtn').addEventListener('click', function() {
+        const filterOptions = document.getElementById('filterOptions');
+        if (filterOptions.style.display === 'none') {
+          filterOptions.style.display = 'block';
+          this.textContent = '隐藏过滤选项';
+        } else {
+          filterOptions.style.display = 'none';
+          this.textContent = '显示过滤选项';
+        }
+      });
+      
       // 配置文件选项卡切换
       const configTabs = document.querySelectorAll('.config-tab');
       const configContents = document.querySelectorAll('.config-content');
@@ -1122,16 +1317,29 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       document.getElementById('toggleShortUrlBtn').addEventListener('click', function() {
         const shortUrlContainer = document.getElementById('shortUrlContainer');
         const shortUrlError = document.getElementById('shortUrlError');
+        const qrCodeContainer = document.getElementById('qrCodeContainer');
         
         if (shortUrlContainer.style.display === 'none') {
+          // 显示短链接选项
           shortUrlContainer.style.display = 'block';
           this.textContent = '隐藏短链接选项';
           this.classList.remove('btn-warning');
           this.classList.add('btn-secondary');
+          
           // 确保清除之前的错误信息
           shortUrlError.style.display = 'none';
           document.getElementById('customShortId').value = '';
+          
+          // 隐藏二维码
+          qrCodeContainer.style.display = 'none';
+          
+          // 恢复二维码按钮状态
+          const qrCodeBtn = document.getElementById('showQrCodeBtn');
+          qrCodeBtn.textContent = '显示二维码';
+          qrCodeBtn.classList.remove('btn-secondary');
+          qrCodeBtn.classList.add('btn-success');
         } else {
+          // 隐藏短链接选项
           shortUrlContainer.style.display = 'none';
           this.textContent = '创建短链接';
           this.classList.remove('btn-secondary');
@@ -1162,6 +1370,26 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         
         console.log('生成的订阅URL:', convertUrl);
         
+        // 如果是auto格式，显示提示信息
+        if (target === 'auto') {
+          const infoElement = document.createElement('div');
+          infoElement.className = 'info-message mt-2 mb-3';
+          infoElement.innerHTML = '<strong>提示：</strong>您选择了"自动识别"格式，访问链接时系统将根据客户端自动转换为合适的格式。';
+          
+          // 检查是否已经添加了提示
+          const existingInfo = document.querySelector('.info-message');
+          if (!existingInfo) {
+            const resultElement = document.getElementById('resultUrl');
+            resultElement.parentNode.insertBefore(infoElement, resultElement.nextSibling);
+          }
+        } else {
+          // 移除之前的提示（如果有）
+          const existingInfo = document.querySelector('.info-message');
+          if (existingInfo) {
+            existingInfo.remove();
+          }
+        }
+        
         if (config) {
           convertUrl += '&config=' + encodeURIComponent(config);
         }
@@ -1180,6 +1408,31 @@ function generateHtmlContent(accessToken, env, requestUrl) {
           }
         });
         
+        // 添加高级过滤选项
+        const includeNodes = document.getElementById('includeNodes').value.trim();
+        const excludeNodes = document.getElementById('excludeNodes').value.trim();
+        const useRegex = document.getElementById('useRegex').checked;
+        const nodeLimit = document.getElementById('nodeLimit').value.trim();
+        const sortMethod = document.getElementById('sortMethod').value;
+        
+        if (includeNodes) {
+          convertUrl += '&include=' + encodeURIComponent(includeNodes);
+          if (useRegex) convertUrl += '&include_mode=true';
+        }
+        
+        if (excludeNodes) {
+          convertUrl += '&exclude=' + encodeURIComponent(excludeNodes);
+          if (useRegex) convertUrl += '&exclude_mode=true';
+        }
+        
+        if (nodeLimit && !isNaN(parseInt(nodeLimit))) {
+          convertUrl += '&limit=' + encodeURIComponent(nodeLimit);
+        }
+        
+        if (sortMethod) {
+          convertUrl += '&sort=' + encodeURIComponent(sortMethod);
+        }
+        
         if (backendUrl !== defaultBackend) {
           convertUrl += '&backend=' + encodeURIComponent(backendUrl);
         }
@@ -1190,8 +1443,16 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         // 重置短链接相关UI
         document.getElementById('shortUrlContainer').style.display = 'none';
         document.getElementById('toggleShortUrlBtn').textContent = '创建短链接';
+        document.getElementById('toggleShortUrlBtn').classList.remove('btn-secondary');
+        document.getElementById('toggleShortUrlBtn').classList.add('btn-warning');
         document.getElementById('customShortId').value = '';
         document.getElementById('shortUrlResult').style.display = 'none';
+        
+        // 不自动生成二维码，让用户点击"显示二维码"按钮
+        document.getElementById('qrCodeContainer').style.display = 'none';
+        document.getElementById('showQrCodeBtn').textContent = '显示二维码';
+        document.getElementById('showQrCodeBtn').classList.remove('btn-secondary');
+        document.getElementById('showQrCodeBtn').classList.add('btn-success');
         
         // 平滑滚动到结果区域
         document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
@@ -1250,6 +1511,13 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             shortUrlElement.classList.add('success-highlight');
             document.getElementById('shortUrlResult').style.display = 'block';
             
+            // 重置短链接二维码状态
+            document.getElementById('shortQrCodeContainer').style.display = 'none';
+            const shortQrCodeBtn = document.getElementById('shortQrCodeBtn');
+            shortQrCodeBtn.textContent = '生成二维码';
+            shortQrCodeBtn.classList.remove('btn-outline-secondary');
+            shortQrCodeBtn.classList.add('btn-outline-success');
+            
             // 如果是自定义ID，显示成功提示
             if (data.custom) {
               const customInput = document.getElementById('customShortId');
@@ -1258,6 +1526,24 @@ function generateHtmlContent(accessToken, env, requestUrl) {
                 customInput.classList.remove('is-valid');
               }, 3000);
             }
+            
+            // 确保短链接容器仍然可见
+            document.getElementById('shortUrlContainer').style.display = 'block';
+            
+            // 修改toggleShortUrlBtn按钮状态为"隐藏短链接选项"
+            const toggleBtn = document.getElementById('toggleShortUrlBtn');
+            toggleBtn.textContent = '隐藏短链接选项';
+            toggleBtn.classList.remove('btn-warning');
+            toggleBtn.classList.add('btn-secondary');
+            
+            // 隐藏二维码
+            document.getElementById('qrCodeContainer').style.display = 'none';
+            
+            // 修改showQrCodeBtn按钮状态
+            const qrCodeBtn = document.getElementById('showQrCodeBtn');
+            qrCodeBtn.textContent = '显示二维码';
+            qrCodeBtn.classList.remove('btn-secondary');
+            qrCodeBtn.classList.add('btn-success');
             
             // 恢复按钮状态
             this.innerHTML = originalText;
@@ -1276,7 +1562,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             // 提供更友好的错误消息
             if (errorMsg.includes('KV存储未配置') || 
                 errorMsg.includes('Cannot read properties') && errorMsg.includes('KV')) {
-              userFriendlyMsg = '服务器未正确配置KV存储';
+              userFriendlyMsg = '服务器未正确配置KV存储，请联系管理员';
             }
             
             // 在界面上显示错误信息
@@ -1377,6 +1663,124 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             this.className = originalClass;
           }, 2000);
         }.bind(this));
+      });
+      
+      // 生成二维码
+      document.getElementById('showQrCodeBtn').addEventListener('click', function() {
+        const resultUrl = document.getElementById('resultUrl').textContent;
+        const qrCodeContainer = document.getElementById('qrCodeContainer');
+        const qrCodeDiv = document.getElementById('qrCode');
+        const shortUrlContainer = document.getElementById('shortUrlContainer');
+        
+        if (!resultUrl) {
+          alert('请先生成订阅链接');
+          return;
+        }
+        
+        // 切换显示/隐藏
+        if (qrCodeContainer.style.display === 'none') {
+          // 显示二维码
+          qrCodeContainer.style.display = 'block';
+          
+          // 更新按钮状态
+          this.textContent = '隐藏二维码';
+          this.classList.remove('btn-success');
+          this.classList.add('btn-secondary');
+          
+          // 清空之前的二维码
+          qrCodeDiv.innerHTML = '';
+          
+          // 生成二维码
+          new QRCode(qrCodeDiv, {
+            text: resultUrl,
+            width: Math.min(200, window.innerWidth - 80),
+            height: Math.min(200, window.innerWidth - 80),
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+          });
+          
+          // 隐藏短链接选项
+          shortUrlContainer.style.display = 'none';
+          
+          // 恢复短链接按钮状态
+          const shortUrlBtn = document.getElementById('toggleShortUrlBtn');
+          shortUrlBtn.textContent = '创建短链接';
+          shortUrlBtn.classList.remove('btn-secondary');
+          shortUrlBtn.classList.add('btn-warning');
+        } else {
+          // 隐藏二维码
+          qrCodeContainer.style.display = 'none';
+          this.textContent = '显示二维码';
+          this.classList.remove('btn-secondary');
+          this.classList.add('btn-success');
+        }
+      });
+      
+      // 下载二维码
+      document.getElementById('downloadQrBtn').addEventListener('click', function() {
+        const qrImage = document.querySelector('#qrCode img');
+        if (!qrImage) {
+          alert('二维码未生成');
+          return;
+        }
+        
+        // 创建临时a标签
+        const link = document.createElement('a');
+        link.href = qrImage.src;
+        link.download = '订阅链接二维码.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+      
+      // 设置默认隐藏二维码容器和短链接容器
+      document.getElementById('qrCodeContainer').style.display = 'none';
+      document.getElementById('shortUrlContainer').style.display = 'none';
+      document.getElementById('showQrCodeBtn').textContent = '显示二维码';
+      document.getElementById('showQrCodeBtn').classList.remove('btn-secondary');
+      document.getElementById('showQrCodeBtn').classList.add('btn-success');
+
+      // 为短链接生成二维码
+      document.getElementById('shortQrCodeBtn').addEventListener('click', function() {
+        const shortUrl = document.getElementById('shortUrl').textContent;
+        const shortQrCodeContainer = document.getElementById('shortQrCodeContainer');
+        const shortQrCodeDiv = document.getElementById('shortQrCode');
+        
+        if (!shortUrl) {
+          alert('短链接未生成');
+          return;
+        }
+        
+        // 切换显示/隐藏
+        if (shortQrCodeContainer.style.display === 'none') {
+          // 显示二维码
+          shortQrCodeContainer.style.display = 'block';
+          
+          // 更新按钮状态
+          this.textContent = '隐藏二维码';
+          this.classList.remove('btn-outline-success');
+          this.classList.add('btn-outline-secondary');
+          
+          // 清空之前的二维码
+          shortQrCodeDiv.innerHTML = '';
+          
+          // 生成二维码
+          new QRCode(shortQrCodeDiv, {
+            text: shortUrl,
+            width: Math.min(180, window.innerWidth - 100),
+            height: Math.min(180, window.innerWidth - 100),
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+          });
+        } else {
+          // 隐藏二维码
+          shortQrCodeContainer.style.display = 'none';
+          this.textContent = '生成二维码';
+          this.classList.remove('btn-outline-secondary');
+          this.classList.add('btn-outline-success');
+        }
       });
     });
   </script>
