@@ -673,6 +673,34 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       padding: 0.5rem;
       margin: -0.5rem;
     }
+    
+    /* 新增样式 */
+    .success-highlight {
+      animation: highlight-fade 1.5s ease;
+    }
+    
+    @keyframes highlight-fade {
+      0% { background-color: #d4edda; }
+      100% { background-color: transparent; }
+    }
+    
+    .is-valid {
+      border-color: #28a745 !important;
+      background-color: #f8fff9 !important;
+    }
+    
+    .is-invalid {
+      border-color: #dc3545 !important;
+      background-color: #fff8f8 !important;
+    }
+    
+    .input-group .btn {
+      z-index: 0;
+    }
+    
+    .input-group {
+      flex-wrap: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -777,7 +805,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         
         <div class="btn-group">
           <button id="copyBtn" class="btn btn-primary">复制链接</button>
-          <button id="shortenBtn" class="btn btn-warning">生成短链接</button>
+          <button id="toggleShortUrlBtn" class="btn btn-warning">创建短链接</button>
         </div>
         
         <div id="shortUrlContainer" class="short-url" style="display: none;">
@@ -786,15 +814,18 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             <div class="input-group">
               <span class="input-group-text">${baseUrl}/${SHORT_URL_PREFIX}/</span>
               <input type="text" class="form-control" id="customShortId" placeholder="输入自定义ID或留空随机生成">
+              <button id="shortenBtn" class="btn btn-warning">生成短链接</button>
             </div>
             <div class="form-text">仅允许使用字母、数字和下划线，长度3-20个字符</div>
           </div>
           
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-bold">短链接:</span>
-            <button id="copyShortBtn" class="btn btn-sm btn-outline-secondary">复制</button>
+          <div id="shortUrlResult" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-bold">短链接:</span>
+              <button id="copyShortBtn" class="btn btn-sm btn-outline-secondary">复制</button>
+            </div>
+            <div id="shortUrl" class="result-url"></div>
           </div>
-          <div id="shortUrl"></div>
         </div>
       </div>
       
@@ -1013,6 +1044,18 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         }
       });
       
+      // 显示/隐藏短链接输入区域
+      document.getElementById('toggleShortUrlBtn').addEventListener('click', function() {
+        const shortUrlContainer = document.getElementById('shortUrlContainer');
+        if (shortUrlContainer.style.display === 'none') {
+          shortUrlContainer.style.display = 'block';
+          this.textContent = '隐藏短链接选项';
+        } else {
+          shortUrlContainer.style.display = 'none';
+          this.textContent = '创建短链接';
+        }
+      });
+      
       // 生成订阅链接
       document.getElementById('convertBtn').addEventListener('click', function() {
         const subUrl = document.getElementById('subUrl').value.trim();
@@ -1061,8 +1104,11 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         document.getElementById('resultUrl').textContent = convertUrl;
         document.getElementById('result').style.display = 'block';
         
-        // 隐藏短链接容器
+        // 重置短链接相关UI
         document.getElementById('shortUrlContainer').style.display = 'none';
+        document.getElementById('toggleShortUrlBtn').textContent = '创建短链接';
+        document.getElementById('customShortId').value = '';
+        document.getElementById('shortUrlResult').style.display = 'none';
         
         // 平滑滚动到结果区域
         document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
@@ -1109,16 +1155,43 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             }
             
             // 显示短链接
-            document.getElementById('shortUrl').textContent = data.shortUrl;
-            document.getElementById('shortUrlContainer').style.display = 'block';
+            const shortUrlElement = document.getElementById('shortUrl');
+            shortUrlElement.textContent = data.shortUrl;
+            shortUrlElement.classList.add('success-highlight');
+            document.getElementById('shortUrlResult').style.display = 'block';
+            
+            // 如果是自定义ID，显示成功提示
+            if (data.custom) {
+              const customInput = document.getElementById('customShortId');
+              customInput.classList.add('is-valid');
+              setTimeout(() => {
+                customInput.classList.remove('is-valid');
+              }, 3000);
+            }
             
             // 恢复按钮状态
             this.textContent = originalText;
             this.disabled = false;
+            
+            // 添加样式强调显示结果
+            setTimeout(() => {
+              shortUrlElement.classList.remove('success-highlight');
+            }, 1500);
           })
           .catch(error => {
-            alert('生成短链接失败: ' + error.message);
+            // 显示错误信息
+            const errorMsg = error.message || '未知错误';
+            alert('生成短链接失败: ' + errorMsg);
             console.error('生成短链接失败:', error);
+            
+            // 如果是自定义ID错误，高亮输入框
+            if (customId && errorMsg.includes('自定义') || errorMsg.includes('已被使用')) {
+              const customInput = document.getElementById('customShortId');
+              customInput.classList.add('is-invalid');
+              setTimeout(() => {
+                customInput.classList.remove('is-invalid');
+              }, 3000);
+            }
             
             // 恢复按钮状态
             this.textContent = originalText;
@@ -1345,6 +1418,19 @@ export default {
         });
       }
 
+      // 验证自定义ID格式
+      if (customId && !/^[a-zA-Z0-9_]{3,20}$/.test(customId)) {
+        return new Response(JSON.stringify({
+          error: '自定义ID格式不正确，请使用3-20个字母、数字或下划线'
+        }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+
       try {
         let shortId;
         if (customId) {
@@ -1377,7 +1463,8 @@ export default {
         return new Response(JSON.stringify({
           shortUrl,
           shortId,
-          originalUrl: longUrl
+          originalUrl: longUrl,
+          custom: !!customId
         }), {
           headers: {
             'Content-Type': 'application/json',
