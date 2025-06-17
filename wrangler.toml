@@ -24,12 +24,12 @@ enabled = true
 head_sampling_rate = 1 # optional. default = 1.
 
 # 环境变量
-[vars]
-# 访问令牌，留空表示不启用验证
-ACCESS_TOKEN = "123"
-# 默认配置文件链接，留空表示不使用默认配置
-DEFAULT_CONFIG = ""
-# 自定义后端服务地址，留空则使用代码中的默认值
-CUSTOM_BACKEND = ""
-# 默认订阅文件名，留空则使用后端默认值
-DEFAULT_FILENAME = "config"
+#[vars]
+## 访问令牌，留空表示不启用验证
+#ACCESS_TOKEN = "123"
+## 默认配置文件链接，留空表示不使用默认配置
+#DEFAULT_CONFIG = ""
+## 自定义后端服务地址，留空则使用代码中的默认值
+#CUSTOM_BACKEND = ""
+## 默认订阅文件名，留空则使用后端默认值
+#DEFAULT_FILENAME = "config"
