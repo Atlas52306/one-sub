@@ -9,7 +9,15 @@ local_protocol = "http"
 
 # 生产环境配置
 [env.production]
-workers_dev = true 
+workers_dev = true
+
+# KV 命名空间
+# 正式部署前请在 Cloudflare Dashboard 中创建名为 "ONE_SUB_URLS" 的KV命名空间
+# 然后将生成的ID替换下面的 KV_NAMESPACE_ID
+[[kv_namespaces]]
+binding = "KV"
+id = "KV_NAMESPACE_ID"
+preview_id = "KV_NAMESPACE_ID"  # 可选，用于本地开发
 
 [observability]
 enabled = true
