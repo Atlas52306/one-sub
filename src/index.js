@@ -1106,6 +1106,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       
       <div class="footer">
         <p>基于 <a href="https://github.com/tindy2013/subconverter" target="_blank">subconverter</a> 提供的后端服务</p>
+        <p>项目地址：<a href="https://github.com/omskk/one-sub" target="_blank">https://github.com/omskk/one-sub</a></p>
       </div>
     </div>
   </div>
