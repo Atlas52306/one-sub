@@ -66,8 +66,8 @@ function generateShortId() {
  * @returns {Promise<string>} 生成的短链接ID
  */
 async function createShortUrl(longUrl, env) {
-  if (!env.KV) {
-    throw new Error('KV存储未配置');
+  if (!env || !env.KV) {
+    throw new Error('KV存储未配置或不可用');
   }
 
   // 生成短链接ID
@@ -86,8 +86,8 @@ async function createShortUrl(longUrl, env) {
  * @returns {Promise<string|null>} 原始URL或null
  */
 async function getLongUrl(shortId, env) {
-  if (!env.KV) {
-    throw new Error('KV存储未配置');
+  if (!env || !env.KV) {
+    throw new Error('KV存储未配置或不可用');
   }
 
   // 从KV获取原始URL
@@ -482,6 +482,25 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       border-radius: 6px;
       margin-top: 12px;
     }
+    .error-message {
+      color: #dc3545;
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-top: 8px;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .info-message {
+      color: #0c5460;
+      background-color: #d1ecf1;
+      border: 1px solid #bee5eb;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-top: 8px;
+      font-size: 0.85rem;
+    }
     .options-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -600,7 +619,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
     #configPreviewModal .modal-body {
       /*max-height: 800px;*/
       /*height: 100%;*/
-      max-height: 100%;
+      max-height: 90%;
       overflow-y: auto;
     }
     #configPreviewModal pre {
@@ -700,6 +719,60 @@ function generateHtmlContent(accessToken, env, requestUrl) {
     
     .input-group {
       flex-wrap: nowrap;
+    }
+    
+    .btn-warning {
+      background-color: #ffc107;
+      border-color: #ffc107;
+      color: #212529;
+    }
+    
+    .btn-warning:hover {
+      background-color: #e0a800;
+      border-color: #d39e00;
+      color: #212529;
+    }
+    
+    .btn-warning:focus, .btn-warning:active {
+      box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.5);
+    }
+    
+    .btn-warning:disabled {
+      background-color: #ffc107;
+      border-color: #ffc107;
+      opacity: 0.65;
+    }
+    
+    .loading-spinner {
+      display: inline-block;
+      width: 1rem;
+      height: 1rem;
+      margin-right: 0.5rem;
+      border: 0.15em solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      animation: spinner-border 0.75s linear infinite;
+    }
+    
+    @keyframes spinner-border {
+      to { transform: rotate(360deg); }
+    }
+    
+    .error-message {
+      display: none;
+      margin-top: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.25rem;
+      font-size: 0.875rem;
+      color: #721c24;
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
   </style>
 </head>
@@ -817,6 +890,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
               <button id="shortenBtn" class="btn btn-warning">生成短链接</button>
             </div>
             <div class="form-text">仅允许使用字母、数字和下划线，长度3-20个字符</div>
+            <div id="shortUrlError" class="error-message"></div>
           </div>
           
           <div id="shortUrlResult" style="display: none;">
@@ -1047,12 +1121,21 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       // 显示/隐藏短链接输入区域
       document.getElementById('toggleShortUrlBtn').addEventListener('click', function() {
         const shortUrlContainer = document.getElementById('shortUrlContainer');
+        const shortUrlError = document.getElementById('shortUrlError');
+        
         if (shortUrlContainer.style.display === 'none') {
           shortUrlContainer.style.display = 'block';
           this.textContent = '隐藏短链接选项';
+          this.classList.remove('btn-warning');
+          this.classList.add('btn-secondary');
+          // 确保清除之前的错误信息
+          shortUrlError.style.display = 'none';
+          document.getElementById('customShortId').value = '';
         } else {
           shortUrlContainer.style.display = 'none';
           this.textContent = '创建短链接';
+          this.classList.remove('btn-secondary');
+          this.classList.add('btn-warning');
         }
       });
       
@@ -1123,21 +1206,28 @@ function generateHtmlContent(accessToken, env, requestUrl) {
       document.getElementById('shortenBtn').addEventListener('click', function() {
         const longUrl = document.getElementById('resultUrl').textContent;
         const customId = document.getElementById('customShortId')?.value?.trim();
+        const shortUrlError = document.getElementById('shortUrlError');
+        
+        // 隐藏之前的错误信息
+        shortUrlError.style.display = 'none';
+        shortUrlError.textContent = '';
         
         if (!longUrl) {
-          alert('请先生成订阅链接');
+          shortUrlError.textContent = '请先生成订阅链接';
+          shortUrlError.style.display = 'block';
           return;
         }
         
         // 验证自定义ID格式
         if (customId && !/^[a-zA-Z0-9_]{3,20}$/.test(customId)) {
-          alert('自定义ID格式不正确，请使用3-20个字母、数字或下划线');
+          shortUrlError.textContent = '自定义ID格式不正确，请使用3-20个字母、数字或下划线';
+          shortUrlError.style.display = 'block';
           return;
         }
         
         // 显示按钮加载状态
         const originalText = this.textContent;
-        this.textContent = '生成中...';
+        this.innerHTML = '<span class="loading-spinner"></span>生成中...';
         this.disabled = true;
         
         // 构建API请求URL
@@ -1170,7 +1260,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             }
             
             // 恢复按钮状态
-            this.textContent = originalText;
+            this.innerHTML = originalText;
             this.disabled = false;
             
             // 添加样式强调显示结果
@@ -1181,11 +1271,21 @@ function generateHtmlContent(accessToken, env, requestUrl) {
           .catch(error => {
             // 显示错误信息
             const errorMsg = error.message || '未知错误';
-            alert('生成短链接失败: ' + errorMsg);
+            let userFriendlyMsg = errorMsg;
+            
+            // 提供更友好的错误消息
+            if (errorMsg.includes('KV存储未配置') || 
+                errorMsg.includes('Cannot read properties') && errorMsg.includes('KV')) {
+              userFriendlyMsg = '服务器未正确配置KV存储';
+            }
+            
+            // 在界面上显示错误信息
+            shortUrlError.textContent = '生成短链接失败: ' + userFriendlyMsg;
+            shortUrlError.style.display = 'block';
             console.error('生成短链接失败:', error);
             
             // 如果是自定义ID错误，高亮输入框
-            if (customId && errorMsg.includes('自定义') || errorMsg.includes('已被使用')) {
+            if (customId && (errorMsg.includes('自定义') || errorMsg.includes('已被使用'))) {
               const customInput = document.getElementById('customShortId');
               customInput.classList.add('is-invalid');
               setTimeout(() => {
@@ -1194,7 +1294,7 @@ function generateHtmlContent(accessToken, env, requestUrl) {
             }
             
             // 恢复按钮状态
-            this.textContent = originalText;
+            this.innerHTML = originalText;
             this.disabled = false;
           });
       });
@@ -1206,14 +1306,14 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         navigator.clipboard.writeText(resultUrl).then(function() {
           // 显示复制成功的提示，而不是弹窗
           const originalText = this.textContent;
-          this.textContent = '复制成功!';
+          const originalClass = this.className;
+          this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg> 复制成功!';
           this.classList.add('btn-success');
-          this.classList.remove('btn-copy');
+          this.classList.remove('btn-primary');
           
           setTimeout(() => {
-            this.textContent = originalText;
-            this.classList.remove('btn-success');
-            this.classList.add('btn-copy');
+            this.innerHTML = originalText;
+            this.className = originalClass;
           }, 2000);
         }.bind(this), function(err) {
           console.error('复制失败: ', err);
@@ -1227,14 +1327,14 @@ function generateHtmlContent(accessToken, env, requestUrl) {
           document.body.removeChild(textarea);
           
           const originalText = this.textContent;
-          this.textContent = '复制成功!';
+          const originalClass = this.className;
+          this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg> 复制成功!';
           this.classList.add('btn-success');
-          this.classList.remove('btn-copy');
+          this.classList.remove('btn-primary');
           
           setTimeout(() => {
-            this.textContent = originalText;
-            this.classList.remove('btn-success');
-            this.classList.add('btn-copy');
+            this.innerHTML = originalText;
+            this.className = originalClass;
           }, 2000);
         }.bind(this));
       });
@@ -1246,14 +1346,14 @@ function generateHtmlContent(accessToken, env, requestUrl) {
         navigator.clipboard.writeText(shortUrl).then(function() {
           // 显示复制成功的提示，而不是弹窗
           const originalText = this.textContent;
-          this.textContent = '已复制';
+          const originalClass = this.className;
+          this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg> 已复制';
           this.classList.add('btn-success');
           this.classList.remove('btn-outline-secondary');
           
           setTimeout(() => {
-            this.textContent = originalText;
-            this.classList.remove('btn-success');
-            this.classList.add('btn-outline-secondary');
+            this.innerHTML = originalText;
+            this.className = originalClass;
           }, 2000);
         }.bind(this), function(err) {
           console.error('复制失败: ', err);
@@ -1267,14 +1367,14 @@ function generateHtmlContent(accessToken, env, requestUrl) {
           document.body.removeChild(textarea);
           
           const originalText = this.textContent;
-          this.textContent = '已复制';
+          const originalClass = this.className;
+          this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" style="margin-right: 4px;"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg> 已复制';
           this.classList.add('btn-success');
           this.classList.remove('btn-outline-secondary');
           
           setTimeout(() => {
-            this.textContent = originalText;
-            this.classList.remove('btn-success');
-            this.classList.add('btn-outline-secondary');
+            this.innerHTML = originalText;
+            this.className = originalClass;
           }, 2000);
         }.bind(this));
       });
@@ -1411,6 +1511,19 @@ export default {
           error: '访问令牌无效或缺失'
         }), {
           status: 403,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+
+      // 验证KV存储是否可用
+      if (!env || !env.KV) {
+        return new Response(JSON.stringify({
+          error: 'KV存储未配置，请联系管理员配置Workers KV存储'
+        }), {
+          status: 500,
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'
