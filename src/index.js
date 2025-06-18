@@ -45,6 +45,9 @@ const FEATURE_OPTIONS = [
 const SHORT_URL_PREFIX = 's';  // 短链接路径前缀，例如：/s/abcdef
 const SHORT_ID_LENGTH = 6;     // 短链接ID长度
 
+// UUID相关配置
+const UUID_PREFIX = 'uuid';  // UUID路径前缀，例如：/uuid/12345678-1234-1234-1234-123456789012
+
 /**
  * 生成随机短链接ID
  * @returns {string} 随机ID
@@ -59,25 +62,6 @@ function generateShortId() {
   return result;
 }
 
-/**
- * 创建短链接
- * @param {string} longUrl 原始长URL
- * @param {Object} env 环境变量
- * @returns {Promise<string>} 生成的短链接ID
- */
-async function createShortUrl(longUrl, env) {
-  if (!env || !env.KV) {
-    throw new Error('KV存储未配置或不可用');
-  }
-
-  // 生成短链接ID
-  const shortId = generateShortId();
-
-  // 存储到KV
-  await env.KV.put(shortId, longUrl);
-
-  return shortId;
-}
 
 /**
  * 获取短链接对应的原始URL
@@ -1738,24 +1722,41 @@ function generateHtmlContent(accessToken, env, requestUrl) {
           // 清空之前的二维码
           qrCodeDiv.innerHTML = '';
           
-          // 生成二维码
-          new QRCode(qrCodeDiv, {
-            text: resultUrl,
-            width: Math.min(200, window.innerWidth - 80),
-            height: Math.min(200, window.innerWidth - 80),
-            colorDark: "#000000",
-            colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
-          });
+          try {
+            // 生成二维码 - 设置适当的纠错级别以处理较长的URL
+            new QRCode(qrCodeDiv, {
+              text: resultUrl,
+              width: Math.min(256, window.innerWidth - 80),
+              height: Math.min(256, window.innerWidth - 80),
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.L, // 使用L级别以支持更多数据
+              version: 10 // 较大的版本支持更长的数据
+            });
+          } catch (e) {
+            console.error('二维码生成错误:', e);
+            
+            // 如果直接生成失败，尝试创建短链接，然后使用短链接生成二维码
+            qrCodeDiv.innerHTML = '<div class="alert alert-warning">URL太长，无法直接生成二维码，请先创建短链接</div>';
+            
+            // 自动显示短链接选项
+            shortUrlContainer.style.display = 'block';
+            const shortUrlBtn = document.getElementById('toggleShortUrlBtn');
+            shortUrlBtn.textContent = '隐藏短链接选项';
+            shortUrlBtn.classList.remove('btn-warning');
+            shortUrlBtn.classList.add('btn-secondary');
+          }
           
           // 隐藏短链接选项
-          shortUrlContainer.style.display = 'none';
-          
-          // 恢复短链接按钮状态
-          const shortUrlBtn = document.getElementById('toggleShortUrlBtn');
-          shortUrlBtn.textContent = '创建短链接';
-          shortUrlBtn.classList.remove('btn-secondary');
-          shortUrlBtn.classList.add('btn-warning');
+          if (qrCodeDiv.innerHTML.indexOf('alert-warning') === -1) {
+            shortUrlContainer.style.display = 'none';
+            
+            // 恢复短链接按钮状态
+            const shortUrlBtn = document.getElementById('toggleShortUrlBtn');
+            shortUrlBtn.textContent = '创建短链接';
+            shortUrlBtn.classList.remove('btn-secondary');
+            shortUrlBtn.classList.add('btn-warning');
+          }
         } else {
           // 隐藏二维码
           qrCodeContainer.style.display = 'none';
@@ -1816,11 +1817,11 @@ function generateHtmlContent(accessToken, env, requestUrl) {
           // 生成二维码
           new QRCode(shortQrCodeDiv, {
             text: shortUrl,
-            width: Math.min(180, window.innerWidth - 100),
-            height: Math.min(180, window.innerWidth - 100),
+            width: Math.min(200, window.innerWidth - 100),
+            height: Math.min(200, window.innerWidth - 100),
             colorDark: "#000000",
             colorLight: "#ffffff",
-            correctLevel: QRCode.CorrectLevel.H
+            correctLevel: QRCode.CorrectLevel.M
           });
         } else {
           // 隐藏二维码
@@ -1866,8 +1867,89 @@ export default {
     const path = url.pathname;
     const params = url.searchParams;
 
-    // 处理短链接请求 - 格式: /s/xxxxx
+    // 获取用户请求中的User-Agent
+    const userAgent = request.headers.get('User-Agent') || 'ClashConfigGenerator';
+
+    // 打印请求信息到控制台（不包含敏感信息）
+    console.log(`收到请求: ${path}`);
+
+    // 处理UUID路径请求 - 格式: /uuid/xxxxx
     const pathParts = path.split('/').filter(part => part);
+    if (pathParts.length > 0 && pathParts[0] === UUID_PREFIX) {
+      const requestUUID = pathParts.length > 1 ? pathParts[1] : null;
+      const configUUID = env.UUID || '';
+
+      console.log(`UUID请求处理中`);
+
+      // 如果设置了UUID，则必须验证
+      if (configUUID && configUUID.trim().length > 0) {
+        // 如果路径为空或不匹配配置的UUID，拒绝访问
+        if (!requestUUID || requestUUID !== configUUID) {
+          console.log(`UUID验证失败`);
+          return new Response('未授权访问', {
+            status: 403,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+        }
+
+        // 如果路径超过了两段（UUID后面还有额外的路径部分），也禁止访问
+        if (pathParts.length > 2) {
+          console.log(`无效的UUID访问路径`);
+          return new Response('无效的访问路径', {
+            status: 403,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+        }
+      } else {
+        // 如果没有设置UUID，不允许使用UUID路径
+        console.log(`UUID未配置`);
+        return new Response('未配置UUID，请联系管理员', {
+          status: 403,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+      }
+
+      try {
+        console.log(`开始处理订阅合并请求`);
+        // 解析传入的订阅链接
+        const providerConfigs = parseProviders(env);
+        if (!providerConfigs || providerConfigs.length === 0) {
+          console.log(`无有效订阅提供者配置`);
+          return new Response('未配置有效的订阅链接，请在环境变量中设置。', {
+            status: 400,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
+        }
+
+        console.log(`找到 ${providerConfigs.length} 个订阅提供者`);
+        // 获取所有订阅内容
+        const subscriptions = await fetchSubscriptions(providerConfigs, userAgent);
+
+        // 生成配置
+        console.log(`开始生成合并配置`);
+        const config = generateConfig(providerConfigs, subscriptions);
+        console.log(`配置生成完成，准备返回`);
+
+        // 返回YAML格式的配置，设置响应头防止缓存
+        return new Response(config, {
+          headers: {
+            'Content-Type': 'text/yaml; charset=utf-8',
+            'Content-Disposition': 'attachment; filename=clash-config.yaml',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+          }
+        });
+      } catch (error) {
+        console.error(`配置生成错误:`, error);
+        return new Response(`配置生成错误: ${error.message}`, {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+        });
+      }
+    }
+
+    // 处理短链接请求 - 格式: /s/xxxxx
     if (pathParts.length >= 2 && pathParts[0] === SHORT_URL_PREFIX) {
       const shortId = pathParts[1];
 
@@ -2181,3 +2263,522 @@ export default {
     });
   }
 };
+
+/**
+ * 从环境变量中解析订阅提供者
+ * @param {Object} env 环境变量
+ * @returns {Array} 订阅提供者数组
+ */
+function parseProviders(env) {
+  const providers = [];
+
+  // 遍历环境变量，查找以PROVIDER_开头的变量
+  for (const key in env) {
+    if (key.startsWith('PROVIDER_')) {
+      try {
+        const value = env[key];
+        if (!value || typeof value !== 'string') continue;
+
+        // 尝试解析格式: "名称,订阅链接"
+        const parts = value.split(',');
+        if (parts.length < 2) continue;
+
+        const name = parts[0].trim();
+        const url = parts[1].trim();
+
+        if (name && url) {
+          providers.push({ name, url });
+          console.log(`加载订阅提供者: ${name}`);
+        }
+      } catch (error) {
+        console.error(`处理环境变量 ${key} 时出错:`, error);
+      }
+    }
+  }
+
+  return providers;
+}
+
+/**
+ * 获取订阅内容
+ * @param {Array} providers 订阅提供者数组
+ * @param {string} userAgent 用户代理
+ * @returns {Promise<Object>} 订阅内容对象
+ */
+async function fetchSubscriptions(providers, userAgent) {
+  const subscriptions = {};
+
+  // 并行获取所有订阅内容
+  const fetchPromises = providers.map(async (provider) => {
+    try {
+      // 添加时间戳或随机字符串，确保绕过缓存
+      const noCache = Date.now();
+      let url = provider.url;
+
+      // 添加防缓存参数
+      url += url.includes('?') ? `&_=${noCache}` : `?_=${noCache}`;
+
+      console.log(`开始获取订阅: ${provider.name}`);
+
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': userAgent,
+          'Accept': '*/*',
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
+        },
+        cf: {
+          // 禁用Cloudflare缓存
+          cacheTtl: 0,
+          cacheEverything: false
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`获取订阅失败: ${response.status} ${response.statusText}`);
+      }
+
+      // 存储订阅内容
+      const text = await response.text();
+      subscriptions[provider.name] = text;
+      console.log(`成功获取订阅: ${provider.name} | 内容长度: ${text.length}字节`);
+    } catch (error) {
+      console.error(`获取订阅 ${provider.name} 时出错:`, error);
+      subscriptions[provider.name] = null; // 标记获取失败
+    }
+  });
+
+  // 等待所有请求完成
+  await Promise.all(fetchPromises);
+
+  return subscriptions;
+}
+
+/**
+ * 生成完整的Clash配置
+ * @param {Array} providers 订阅提供者数组
+ * @param {Object} subscriptions 订阅内容对象
+ * @returns {string} Clash配置
+ */
+function generateConfig(providers, subscriptions) {
+  // 构建代理提供者配置
+  const proxyProviders = {};
+  const proxyGroups = [];
+
+  // 添加默认节点
+  const baseProxies = [
+    {
+      name: "🔄 直连",
+      type: "direct",
+      udp: true
+    },
+    {
+      name: "❌ 拒绝",
+      type: "reject"
+    }
+  ];
+
+  // 为每个提供者创建配置 - 使用Map提高速度
+  const providerGroupNames = [];
+  providers.forEach(provider => {
+    const providerKey = provider.name.replace(/\s+/g, '');
+
+    // 添加到proxy-providers
+    proxyProviders[providerKey] = {
+      url: provider.url,
+      type: "http",
+      interval: 43200,
+      "health-check": {
+        enable: true,
+        url: "https://www.gstatic.com/generate_204",
+        interval: 300
+      },
+      override: {
+        "additional-prefix": `${providerKey}-`
+      }
+    };
+
+    // 为提供者创建一个分组
+    proxyGroups.push({
+      name: `📑 ${provider.name}`,
+      type: "url-test",
+      tolerance: 10,
+      interval: 1200,
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      filter: `(?i)${providerKey}-`
+    });
+
+    // 收集提供商组名称
+    providerGroupNames.push(`📑 ${provider.name}`);
+  });
+
+  // 添加默认分组
+  const defaultGroup = {
+    name: "🚀 默认",
+    type: "select",
+    proxies: [
+      "⚡️ 自动选择",
+      "📍 全部节点",
+      ...providerGroupNames,
+      "🔄 直连",
+      "🇭🇰 香港",
+      "🇹🇼 台湾",
+      "🇯🇵 日本",
+      "🇸🇬 新加坡",
+      "🇺🇸 美国",
+      "🌐 其它地区"
+    ]
+  };
+
+  // 将默认分组放在最前面
+  proxyGroups.unshift(defaultGroup);
+
+  // 创建标准分组配置并添加到分组列表末尾
+  const standardGroups = createStandardGroups(providerGroupNames);
+  // 删除standardGroups中的"🚀 默认"组，因为我们已经单独添加
+  const filteredStandardGroups = standardGroups.filter(group => group.name !== "🚀 默认");
+  proxyGroups.push(...filteredStandardGroups);
+
+  // 使用StringBuilder模式构建YAML字符串，提高性能
+  // 手动构建YAML字符串，避免格式问题
+  const yamlParts = [];
+
+  // 基础代理部分
+  let baseProxiesYaml = '';
+  for (const proxy of baseProxies) {
+    baseProxiesYaml += `- name: ${proxy.name}\n  type: ${proxy.type}\n`;
+    if (proxy.udp) {
+      baseProxiesYaml += `  udp: ${proxy.udp}\n`;
+    }
+  }
+
+  // 手动构建proxy-providers部分
+  let proxyProvidersYaml = '';
+  for (const [key, provider] of Object.entries(proxyProviders)) {
+    proxyProvidersYaml += `  ${key}:\n`;
+    proxyProvidersYaml += `    url: "${provider.url}"\n`;
+    proxyProvidersYaml += `    type: ${provider.type}\n`;
+    proxyProvidersYaml += `    interval: ${provider.interval}\n`;
+    proxyProvidersYaml += `    health-check:\n`;
+    proxyProvidersYaml += `      enable: ${provider["health-check"].enable}\n`;
+    proxyProvidersYaml += `      url: "${provider["health-check"].url}"\n`;
+    proxyProvidersYaml += `      interval: ${provider["health-check"].interval}\n`;
+    proxyProvidersYaml += `    override:\n`;
+    proxyProvidersYaml += `      additional-prefix: "${provider.override["additional-prefix"]}"\n`;
+  }
+
+  // 手动构建proxy-groups部分，性能优化
+  const groupParts = [];
+  for (const group of proxyGroups) {
+    const groupPart = [];
+    groupPart.push(`- name: "${group.name}"\n  type: ${group.type}\n`);
+
+    if (group.proxies) {
+      groupPart.push(`  proxies:\n`);
+      for (const proxy of group.proxies) {
+        groupPart.push(`    - ${proxy}\n`);
+      }
+    }
+
+    if (group["include-all"] !== undefined) {
+      groupPart.push(`  include-all: ${group["include-all"]}\n`);
+    }
+
+    if (group["exclude-type"]) {
+      groupPart.push(`  exclude-type: "${group["exclude-type"]}"\n`);
+    }
+
+    if (group.filter) {
+      groupPart.push(`  filter: "${group.filter}"\n`);
+    }
+
+    if (group.tolerance) {
+      groupPart.push(`  tolerance: ${group.tolerance}\n`);
+    }
+
+    if (group.interval) {
+      groupPart.push(`  interval: ${group.interval}\n`);
+    }
+    groupParts.push(groupPart.join(''));
+  }
+  let proxyGroupsYaml = groupParts.join('');
+
+  // 组装完整配置模板
+  yamlParts.push(`# 通过Cloudflare Worker自动生成的Clash配置
+# 生成时间: ${new Date().toISOString()}
+mixed-port: 7890
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+geodata-mode: true
+geodata-loader: standard
+geo-auto-update: true
+geo-update-interval: 24
+geox-url:
+  geoip: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip-lite.dat"
+  geosite: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+  mmdb: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country-lite.mmdb"
+  asn: "https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb"
+
+
+proxies:
+${baseProxiesYaml}
+proxy-providers:
+${proxyProvidersYaml}
+proxy-groups:
+${proxyGroupsYaml}
+rules:
+- GEOSITE,category-ads-all,🛑 广告拦截
+- "GEOIP,lan,🔄 直连,no-resolve"
+- GEOSITE,github,📦 Github
+- GEOSITE,twitter,🐦 Twitter
+- GEOSITE,youtube,📹 YouTube
+- GEOSITE,google,🔍 Google
+- GEOSITE,telegram,📱 Telegram
+- GEOSITE,netflix,🎬 NETFLIX
+- GEOSITE,bilibili,📺 哔哩哔哩
+- GEOSITE,spotify,🎵 Spotify
+- GEOSITE,CN,🌏 国内
+- MATCH,🌍 其他
+`);
+
+  return yamlParts.join('');
+}
+
+/**
+ * 创建标准分组配置
+ * @param {Array} providerGroupNames 提供者组名称数组
+ * @returns {Array} 标准分组配置数组
+ */
+function createStandardGroups(providerGroupNames) {
+  return [
+    {
+      name: "📍 全部节点",
+      type: "select",
+      "include-all": true,
+      "exclude-type": "direct|reject"
+    },
+    {
+      name: "⚡️ 自动选择",
+      type: "url-test",
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      tolerance: 10,
+      interval: 1200
+    },
+    {
+      name: "🛑 广告拦截",
+      type: "select",
+      proxies: [
+        "❌ 拒绝",
+        "🔄 直连",
+        "🚀 默认"
+      ]
+    },
+    {
+      name: "🇭🇰 香港",
+      type: "select",
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      filter: "(?i)港|hk|hongkong|hong kong"
+    },
+    {
+      name: "🇹🇼 台湾",
+      type: "select",
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      filter: "(?i)台|tw|taiwan"
+    },
+    {
+      name: "🇯🇵 日本",
+      type: "select",
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      filter: "(?i)日|jp|japan"
+    },
+    {
+      name: "🇺🇸 美国",
+      type: "select",
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      filter: "(?i)美|us|unitedstates|united states"
+    },
+    {
+      name: "🇸🇬 新加坡",
+      type: "select",
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      filter: "(?i)(新|sg|singapore)"
+    },
+    {
+      name: "🔍 Google",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "📱 Telegram",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "🐦 Twitter",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "📺 哔哩哔哩",
+      type: "select",
+      proxies: [
+        "🔄 直连",
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择"
+      ]
+    },
+    {
+      name: "📹 YouTube",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "🎬 NETFLIX",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "🎵 Spotify",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "📦 Github",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "🌏 国内",
+      type: "select",
+      proxies: [
+        "🔄 直连",
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择"
+      ]
+    },
+    {
+      name: "🌍 其他",
+      type: "select",
+      proxies: [
+        "🚀 默认",
+        "🇭🇰 香港",
+        "🇹🇼 台湾",
+        "🇯🇵 日本",
+        "🇸🇬 新加坡",
+        "🇺🇸 美国",
+        "🌐 其它地区",
+        "📍 全部节点",
+        "⚡️ 自动选择",
+        "🔄 直连"
+      ]
+    },
+    {
+      name: "🌐 其它地区",
+      type: "select",
+      "include-all": true,
+      "exclude-type": "direct|reject",
+      filter: "(?i)^(?!.*(?:🇭🇰|🇯🇵|🇺🇸|🇸🇬|🇹🇼|港|hk|hongkong|台|tw|taiwan|日|jp|japan|新|sg|singapore|美|us|unitedstates)).*"
+    }
+  ];
+}
