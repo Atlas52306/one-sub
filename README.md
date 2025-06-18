@@ -269,24 +269,22 @@ One-Sub 提供了强大的节点过滤功能：
 
 您也可以输入自定义配置文件链接。
 
-#### 可用功能选项
 
-| 功能 | 说明 |
-|-----|------|
-| Emoji | 为节点添加 Emoji 标识 |
-| Clash新字段名 | 使用新版 Clash 字段名称 |
-| 插入节点类型 | 在节点名称中显示类型 |
-| 启用UDP | 开启 UDP 支持 |
-| 启用XUDP | 开启 XUDP 支持 |
-| 启用TFO | 开启 TCP Fast Open |
-| 基础节点排序 | 对节点进行排序 |
-| Clash.DoH | 启用 Clash 的 DNS over HTTPS |
-| Surge.DoH | 启用 Surge 的 DNS over HTTPS |
-| 展开规则全文 | 完整显示所有规则 |
-| 跳过证书验证 | 跳过 SSL 证书验证 |
-| 过滤不支持节点 | 自动过滤不兼容的节点 |
-| Sing-Box支持IPV6 | 为 Sing-Box 启用 IPV6 支持 |
-| 开启TLS_1.3 | 启用 TLS 1.3 支持 |
+</details>
+
+## 📚 常见问题
+<details>
+<summary>常见问题解答（点击展开）</summary>
+
+### 1. 为什么生成的合并订阅链接中的节点timeout？
+- 检查你的Clash软件是否安装了Tun（虚拟网卡模式）功能
+- Tun模式是否是Mixed模式.
+### 2. subconverter是什么？
+- subconverter是一个开源的订阅转换工具，可以将各种订阅格式转换为Clash、Surge等客户端支持的格式。
+- subconverter支持多种订阅格式，包括SS、SSR、V2Ray等，并且可以自定义转换规则。
+- 如果想保证节点信息不泄露建议自建订阅转换服务。
+### 3. 合并订阅是否需要后端服务？
+- 不需要后端服务，合并订阅功能是直接生成文件。
 </details>
 
 ## 🛠️ 开发指南
