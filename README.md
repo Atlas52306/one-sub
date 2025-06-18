@@ -190,7 +190,8 @@ yarn publish
    - 点击 "保存并部署"
 
 
-环境变量设置方法：
+### 环境变量设置方法：
+
 1. 在 Cloudflare Dashboard 中进入您的 Worker
 2. 点击 "设置" > "变量"
 3. 点击 "添加变量" 按钮
@@ -285,6 +286,12 @@ One-Sub 提供了强大的节点过滤功能：
 - 如果想保证节点信息不泄露建议自建订阅转换服务。
 ### 3. 合并订阅是否需要后端服务？
 - 不需要后端服务，合并订阅功能是直接生成文件。
+
+### 4. 短连接无法生成？
+- 确保您已正确配置 Cloudflare Workers KV 命名空间，并已绑定到您的 Worker。
+
+### 5. 订阅转换功能无法使用？
+- 有可能是默认后端的问题尽量使用自己的服务器搭建。
 </details>
 
 ## 🛠️ 开发指南
@@ -335,6 +342,7 @@ npx wrangler dev
 
 - [subconverter](https://github.com/tindy2013/subconverter) - 提供订阅转换的核心功能
 - [Cloudflare Workers](https://workers.cloudflare.com/) - 提供可靠的无服务器执行环境
+- 感谢 https://api.v1.mk 大佬提供的订阅转换服务（若有侵权请联系我删除）
 - 感谢所有贡献者和用户的支持！
 
 ## 🤝 联系方式
