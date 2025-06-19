@@ -55,9 +55,9 @@ One-Sub 是一个强大的订阅转换工具，基于 Cloudflare Worker 构建�
 </details>
 
 <details>
-<summary>全部功能</summary>
+<summary>合并订阅效果</summary>
 <div align="center">
-  <img src="img/ont-sub-all.png" alt="全部功能" width="80%">
+  <img src="img/ont-sub-all.png" alt="合并订阅效果" width="80%">
 </div>
 </details>
 
