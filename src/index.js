@@ -199,9 +199,10 @@ async function handleRequest(request, env) {
 
     // 复制所有参数，但排除backend和token
     for (const [key, value] of params.entries()) {
-      if (key !== 'backend' && key !== 'token') {
-        backendUrl.searchParams.append(key, value);
-      }
+      backendUrl.searchParams.append(key, value);
+      // if (key !== 'backend' && key !== 'token') {
+      //   backendUrl.searchParams.append(key, value);
+      // }
     }
 
     // 确保filename参数被正确添加
